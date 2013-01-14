@@ -629,6 +629,9 @@ loaduri(Client *c, const Arg *arg) {
 	char *u, *rp;
 	const char *uri = (char *)arg->v;
 	char **parsed_uri;
+	char *home;
+	char *path;
+	char *epath;
 	Arg a = { .b = FALSE };
 	struct stat st;
 
@@ -641,11 +644,22 @@ loaduri(Client *c, const Arg *arg) {
 	/* In case it's a file path. */
 	if(strncmp(parsed_uri[0], "file://", 6) == 0 ||
 		( strlen(parsed_uri[0]) == 0 && strlen(parsed_uri[1]) == 0)) {
-		rp = realpath(parsed_uri[2], NULL);
+		path=malloc(strlen(parsed_uri[1])+strlen(parsed_uri[2])+1);
+		path=strcpy(path, parsed_uri[1]);
+		path=strcat(path, parsed_uri[2]);
+		if (path[0] == '~')
+		{
+		    home = getenv("HOME");
+		    epath = malloc(strlen(path)+strlen(home)-1);
+		    strcpy(epath, home);
+		    epath = strcat(epath, path+1);
+		    path = epath;
+		}
+		rp = realpath(path, NULL);
 		u = g_strdup_printf("file://%s", rp);
 		free(rp);
 	} else {
-		printf("\n__NOK__\n");
+		printf("loaduri: parseuri()\n");
 		u = parseuri(uri);
 	}
 

@@ -562,6 +562,9 @@ loaduri(Client *c, const Arg *arg) {
 	char *u, *rp;
 	const char *uri = (char *)arg->v;
 	char **parsed_uri;
+	char *home;
+	char *path;
+	char *epath;
 	Arg a = { .b = FALSE };
 
 	if(strcmp(uri, "") == 0)
@@ -574,13 +577,24 @@ loaduri(Client *c, const Arg *arg) {
 	if(strncmp(parsed_uri[0], "file://", 6) == 0 ||
 		( strlen(parsed_uri[0]) == 0 && strlen(parsed_uri[1]) == 0)) {
 		printf("\n__OK__\n");
-		rp = realpath(parsed_uri[2], NULL);
-		printf("parsed_uri[2]='%s'\n", parsed_uri[2]);
-		printf("rp=%s\n", rp);
+		path=malloc(strlen(parsed_uri[1])+strlen(parsed_uri[2])+1);
+		path=strcpy(path, parsed_uri[1]);
+		path=strcat(path, parsed_uri[2]);
+		printf("path='%s'\n", path);
+
+		if (path[0] == '~')
+		{
+		    home = getenv("HOME");
+		    epath = malloc(strlen(path)+strlen(home)-1);
+		    strcpy(epath, home);
+		    epath = strcat(epath, path+1);
+		    path = epath;
+		}
+		rp = realpath(path, NULL);
 		u = g_strdup_printf("file://%s", rp);
 		free(rp);
 	} else {
-		printf("\n__NOK__\n");
+		printf("loaduri: parseuri()\n");
 		u = parseuri(uri);
 	}
 

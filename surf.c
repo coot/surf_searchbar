@@ -17,6 +17,7 @@
 #include <limits.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <ctype.h>
 #include <webkit/webkit.h>
 #include <glib/gstdio.h>
 #include <JavaScriptCore/JavaScript.h>
@@ -70,6 +71,11 @@ typedef struct {
 } CookieJarClass;
 
 G_DEFINE_TYPE(CookieJar, cookiejar, SOUP_TYPE_COOKIE_JAR_TEXT)
+
+typedef struct {
+	char *token;
+	char *uri;
+} SearchEngine;
 
 static Display *dpy;
 static Atom atoms[AtomLast];
@@ -141,6 +147,9 @@ static void loaduri(Client *c, const Arg *arg);
 static void navigate(Client *c, const Arg *arg);
 static Client *newclient(void);
 static void newwindow(Client *c, const Arg *arg, gboolean noembed);
+static gchar *parseuri(const gchar *uri);
+static char **parse_address(const char *url);
+static char **parse_url(const char *str);
 static void pasteuri(GtkClipboard *clipboard, const char *text, gpointer d);
 static void populatepopup(WebKitWebView *web, GtkMenu *menu, Client *c);
 static void popupactivate(GtkMenuItem *menu, Client *);
@@ -166,6 +175,7 @@ static void togglescrollbars(Client *c, const Arg *arg);
 static void togglestyle(Client *c, const Arg *arg);
 static void updatetitle(Client *c);
 static void updatewinid(Client *c);
+static int url_has_domain(char *url); 
 static void usage(void);
 static void windowobjectcleared(GtkWidget *w, WebKitWebFrame *frame,
 		JSContextRef js, JSObjectRef win, Client *c);
@@ -618,20 +628,25 @@ static void
 loaduri(Client *c, const Arg *arg) {
 	char *u, *rp;
 	const char *uri = (char *)arg->v;
+	char **parsed_uri;
 	Arg a = { .b = FALSE };
 	struct stat st;
 
 	if(strcmp(uri, "") == 0)
 		return;
 
+	parsed_uri = parse_url(uri);
+	printf("('%s', '%s', '%s')", parsed_uri[0], parsed_uri[1], parsed_uri[2]);
+
 	/* In case it's a file path. */
-	if(stat(uri, &st) == 0) {
-		rp = realpath(uri, NULL);
+	if(strncmp(parsed_uri[0], "file://", 6) == 0 ||
+		( strlen(parsed_uri[0]) == 0 && strlen(parsed_uri[1]) == 0)) {
+		rp = realpath(parsed_uri[2], NULL);
 		u = g_strdup_printf("file://%s", rp);
 		free(rp);
 	} else {
-		u = g_strrstr(uri, "://") ? g_strdup(uri)
-			: g_strdup_printf("http://%s", uri);
+		printf("\n__NOK__\n");
+		u = parseuri(uri);
 	}
 
 	/* prevents endless loop */
@@ -910,6 +925,126 @@ popupactivate(GtkMenuItem *menu, Client *c) {
 		prisel = gtk_clipboard_get(GDK_SELECTION_PRIMARY);
 		gtk_clipboard_set_text(prisel, c->linkhover, -1);
 	}
+}
+
+#define SCHEME_CHAR(ch) (isalnum (ch) || (ch) == '-' || (ch) == '+')
+
+/*
+ * This function takes an url and chop it into three part: sheme, domain, the
+ * rest, e.g. http://www.google.co.uk/search?q=hello will produce a triple
+ * ('http://', 'www.google.co.uk', '/search?q=hello')
+ */
+static char **
+parse_url(const char *str) {
+    /* Return the position of ':' - last element of a scheme, or 0 if there
+     * is no scheme. */
+    char *sch="";
+    char **ret=malloc(strlen(str)+2);
+    char **dret;
+    int i = 0;
+
+    /* The first char must be a scheme char. */
+    if (!*str || !SCHEME_CHAR (*str))
+    {
+	ret[0]="";
+	dret=parse_address(str);
+	ret[1]=dret[0];
+	ret[2]=dret[1];
+	return ret;
+    }
+    ++i;
+    /* Followed by 0 or more scheme chars. */
+    while (*(str+i) && SCHEME_CHAR (*(str+i)))
+    {
+	++i;
+    }
+    sch=malloc(i+4);
+    sch=strncpy(sch, str, i); 
+    sch[i]='\0';
+    if (strlen(sch)) {
+	sch=strcat(sch, "://");
+    }
+
+    /* Terminated by "://". */
+    if (strncmp(sch, str, strlen(sch)) == 0) {
+	    ret[0]=sch;
+	    dret=malloc(strlen(str));
+	    dret=parse_address(str+i+3);
+	    ret[1]=dret[0];
+	    ret[2]=dret[1];
+	    return ret;
+    }
+    ret[0]='\0';
+    dret=parse_address(str);
+    ret[1]=dret[0];
+    ret[2]=dret[1];
+    return ret;
+}
+
+#define DOMAIN_CHAR(ch) (isalnum (ch) || (ch) == '-' || (ch) == '.')
+
+/*
+ * This function takes an url without a scheme and outputs a pair: domain and
+ * the rest.
+ */
+static char **
+parse_address(const char *url)
+{
+    char *domain;
+    char **res=malloc(strlen(url)+1);
+    size_t i=0;
+
+    if (isalnum(*url)) {
+	++i;
+	while (*(url+i) && DOMAIN_CHAR (*(url+i)))
+	    ++i;
+    }
+    domain=malloc(i+1);
+    domain=strncpy(domain, url, i);
+    domain[i]='\0';
+
+    res[0]=domain;
+    res[1]=(char *)(url+i);
+
+    return res;
+}
+
+/*
+ * This function tests if the url is has a qualified domain name.
+ */
+static int
+url_has_domain(char *url) {
+    char **packed=parse_url(url);
+    char *domain;
+    char *rest;
+
+    domain=packed[1];
+    rest=packed[2];
+    if (! *domain ||
+	    (*rest && rest[0] != '/'))
+	return 0;
+
+    return 1;
+}
+
+static gchar *
+parseuri(const gchar *uri) {
+	guint i;
+	bool hdm = url_has_domain((char *) uri);
+
+	/* DEBUG */
+	printf("parseuri: hdm=%s\n", (hdm ? "true" : "false") );
+
+	if (hdm)
+	    return g_strrstr(uri, "://") ? g_strdup(uri) : g_strdup_printf("http://%s", uri);
+
+	for (i = 0; i < LENGTH(searchengines); i++) {
+		if (searchengines[i].token == NULL || searchengines[i].uri == NULL || *(uri + strlen(searchengines[i].token)) != ' ')
+			continue;
+		if (g_str_has_prefix(uri, searchengines[i].token))
+			return g_strdup_printf(searchengines[i].uri, uri + strlen(searchengines[i].token) + 1);
+	}
+	return g_strdup_printf(defaultsearchengine, uri);
 }
 
 static void
@@ -1353,6 +1488,10 @@ main(int argc, char *argv[]) {
 	default:
 		usage();
 	} ARGEND;
+
+#ifdef HOMEPAGE
+	arg.v = HOMEPAGE;
+#endif
 	if(argc > 0)
 		arg.v = argv[0];
 

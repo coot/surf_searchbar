@@ -508,6 +508,10 @@ initdownload(WebKitWebView *view, WebKitDownload *o, Client *c) {
 	Arg arg;
 
 	updatewinid(c);
+	/*
+	 * printf("webkit_donload_get_uri=%s\n", (char *)webkit_download_get_uri(o));
+	 * printf("geturi(c)=%s\n", (char *)geturi(c));
+	 */
 	arg = (Arg)DOWNLOAD((char *)webkit_download_get_uri(o), geturi(c));
 	spawn(c, &arg);
 	return FALSE;
@@ -627,7 +631,7 @@ loadstatuschange(WebKitWebView *view, GParamSpec *pspec, Client *c) {
 static void
 loaduri(Client *c, const Arg *arg) {
 	char *u, *rp;
-	const char *uri = (char *)arg->v;
+	char *uri = (char *)arg->v;
 	char **parsed_uri;
 	char *home;
 	char *path;
@@ -635,11 +639,16 @@ loaduri(Client *c, const Arg *arg) {
 	Arg a = { .b = FALSE };
 	struct stat st;
 
+	while (*uri == ' ')
+	    uri+=1;
+
 	if(strcmp(uri, "") == 0)
 		return;
 
+	printf("loaduri: parseurl('%s')\n", uri);
 	parsed_uri = parse_url(uri);
-	printf("('%s', '%s', '%s')", parsed_uri[0], parsed_uri[1], parsed_uri[2]);
+	printf("loaduri: parseurl returned\n");
+	printf("('%s', '%s', '%s')\n", parsed_uri[0], parsed_uri[1], parsed_uri[2]);
 
 	/* In case it's a file path. */
 	if(strncmp(parsed_uri[0], "file://", 6) == 0 ||
@@ -654,14 +663,19 @@ loaduri(Client *c, const Arg *arg) {
 		    strcpy(epath, home);
 		    epath = strcat(epath, path+1);
 		    path = epath;
+		    printf("path='%s'\n", path);
 		}
 		rp = realpath(path, NULL);
+		printf("rp='%s'\n", rp);
 		u = g_strdup_printf("file://%s", rp);
 		free(rp);
 	} else {
 		printf("loaduri: parseuri()\n");
 		u = parseuri(uri);
+		printf("loaduri: parseuri returned: '%s'\n", (char *)u);
 	}
+
+	printf("loaduri: endless loop init\n");
 
 	/* prevents endless loop */
 	if(c->uri && strcmp(u, c->uri) == 0) {
@@ -673,6 +687,7 @@ loaduri(Client *c, const Arg *arg) {
 		g_free(u);
 		updatetitle(c);
 	}
+	printf("loaduri: return\n");
 }
 
 static void
@@ -953,45 +968,60 @@ parse_url(const char *str) {
     /* Return the position of ':' - last element of a scheme, or 0 if there
      * is no scheme. */
     char *sch="";
-    char **ret=malloc(strlen(str)+2);
+    char *pt=(char *)str;
+    char **ret;
     char **dret;
     int i = 0;
 
+
+    while (*pt == ' ')
+	pt+=1;
+    ret=malloc(strlen(pt)+3);
+
     /* The first char must be a scheme char. */
-    if (!*str || !SCHEME_CHAR (*str))
+    if (!*pt || !SCHEME_CHAR (*pt))
     {
 	ret[0]="";
-	dret=parse_address(str);
+	dret=parse_address(pt);
 	ret[1]=dret[0];
 	ret[2]=dret[1];
+	ret[3]=dret[2];
+	printf("parse_url: return 1\n");
+	printf("('%s', '%s', '%s', '%s')\n", ret[0], ret[1], ret[2], ret[3]);
 	return ret;
     }
     ++i;
     /* Followed by 0 or more scheme chars. */
-    while (*(str+i) && SCHEME_CHAR (*(str+i)))
+    while (*(pt+i) && SCHEME_CHAR (*(pt+i)))
     {
 	++i;
     }
     sch=malloc(i+4);
-    sch=strncpy(sch, str, i); 
+    sch=strncpy(sch, pt, i); 
     sch[i]='\0';
     if (strlen(sch)) {
 	sch=strcat(sch, "://");
     }
 
     /* Terminated by "://". */
-    if (strncmp(sch, str, strlen(sch)) == 0) {
+    if (strncmp(sch, pt, strlen(sch)) == 0) {
 	    ret[0]=sch;
-	    dret=malloc(strlen(str));
-	    dret=parse_address(str+i+3);
+	    /* dret=malloc(strlen(str)); */
+	    dret=parse_address(pt+i+3);
 	    ret[1]=dret[0];
 	    ret[2]=dret[1];
+	    ret[3]=dret[2];
+	    printf("parse_url: return 2\n");
+	    printf("('%s', '%s', '%s', '%s')\n", ret[0], ret[1], ret[2], ret[3]);
 	    return ret;
     }
-    ret[0]='\0';
+    ret[0]="";
     dret=parse_address(str);
     ret[1]=dret[0];
     ret[2]=dret[1];
+    ret[3]=dret[2];
+    printf("parse_url: return 3\n");
+    printf("('%s', '%s', '%s', '%s')\n", ret[0], ret[1], ret[2], ret[3]);
     return ret;
 }
 
@@ -1004,9 +1034,12 @@ parse_url(const char *str) {
 static char **
 parse_address(const char *url)
 {
-    char *domain;
-    char **res=malloc(strlen(url)+1);
+    int n;
     size_t i=0;
+    size_t u=strlen(url);
+    char *domain;
+    char *port;
+    char **res=malloc(u+3);
 
     if (isalnum(*url)) {
 	++i;
@@ -1017,8 +1050,41 @@ parse_address(const char *url)
     domain=strncpy(domain, url, i);
     domain[i]='\0';
 
+    printf("parse_address: url='%s'\n", url);
+    printf("parse_address: url[i]='%c'\n", url[i]);
+    printf("parse_address: domain='%s'\n", domain);
+    // check for port number
+    if ( (u > i) && *(url+i) == ':' )
+    {
+	printf("parse_address: port\n");
+	n=i+1;
+	while ( (n<=u) && (n<i+1+5) && isdigit(*(url+n)) )
+	    n++;
+	if (n>i+1)
+	{
+	    port=malloc(n-i+1);
+	    port=strncpy(port, (url+i), n-i);
+	    port[n-i+1]='\0';
+	}
+	else
+	{
+	    port="";
+	}
+	printf("parse_address: port='%s'\n", port);
+    }
+    else
+    {
+	n=i;
+	port = "";
+    }
+
+    printf("parse_address: domain='%s'\n", domain);
+    printf("parse_address: port='%s'\n", port);
+    printf("parse_address: rest='%s'\n", (url+n));
+
     res[0]=domain;
-    res[1]=(char *)(url+i);
+    res[1]=port;
+    res[2]=(char *)(url+n);
 
     return res;
 }
@@ -1031,14 +1097,36 @@ url_has_domain(char *url) {
     char **packed=parse_url(url);
     char *domain;
     char *rest;
+    char *pt=url;
+    bool test;
+
+    // check white space
+    while (*pt == ' ')
+	pt+=1;
+    if (strstr(pt, " ") != NULL)
+	return false;
 
     domain=packed[1];
-    rest=packed[2];
+    rest=packed[3];
     if (! *domain ||
 	    (*rest && rest[0] != '/'))
-	return 0;
+	return false;
 
-    return 1;
+    // the domain name should contain at least one '.',
+    // unless it is "localhost"
+    if (strcmp(domain, "localhost") == 0) 
+	return true;
+    test = false;
+    for (int i; i<strlen(domain);i++) 
+    {
+	if (domain[i]=='.')
+	{
+	    test = true;
+	    break;
+	}
+    }
+
+    return test;
 }
 
 static gchar *
@@ -1442,7 +1530,7 @@ zoom(Client *c, const Arg *arg) {
 }
 
 int
-main(int argc, char *argv[]) {
+main(int argc, char *argv[], char *envp[]) {
 	Arg arg;
 
 	memset(&arg, 0, sizeof(arg));

@@ -937,21 +937,34 @@ url_has_domain(char *url) {
 static gchar *
 parseuri(const gchar *uri) {
 	guint i;
-	bool hdm = url_has_domain((char *) uri);
+	gchar *pt = (gchar *)uri;
+
+	while (*pt == ' ')
+	    pt+=1;
+	bool hdm = url_has_domain((char *) pt);
 
 	/* DEBUG */
 	printf("parseuri: hdm=%s\n", (hdm ? "true" : "false") );
 
 	if (hdm)
-	    return g_strrstr(uri, "://") ? g_strdup(uri) : g_strdup_printf("http://%s", uri);
+	    return g_strrstr(pt, "://") ? g_strdup(pt) : g_strdup_printf("http://%s", pt);
 
 	for (i = 0; i < LENGTH(searchengines); i++) {
-		if (searchengines[i].token == NULL || searchengines[i].uri == NULL || *(uri + strlen(searchengines[i].token)) != ' ')
+		/* printf("parseuri: 1 [%d]\n", i); */
+		if (searchengines[i].token == NULL
+			|| searchengines[i].uri == NULL)
 			continue;
-		if (g_str_has_prefix(uri, searchengines[i].token))
-			return g_strdup_printf(searchengines[i].uri, uri + strlen(searchengines[i].token) + 1);
+
+		/* printf("parseuri: 2 [%d,%s]\n", i, searchengines[i].token); */
+		if ((*(pt + strlen(searchengines[i].token)) == ' ' && g_str_has_prefix(pt, searchengines[i].token)))
+			return g_strdup_printf(searchengines[i].uri, pt + strlen(searchengines[i].token) + 1);
+
+		/* printf("parseuri: 3 [%d,%s]\n", i, searchengines[i].token); */
+		if (strcmp(pt, searchengines[i].token) == 0)
+			return g_strdup_printf(searchengines[i].uri, "");
+		/* printf("parseuri: 4 [%d,%s]\n", i, searchengines[i].token); */
 	}
-	return g_strdup_printf(defaultsearchengine, uri);
+	return g_strdup_printf(defaultsearchengine, pt);
 }
 
 static void

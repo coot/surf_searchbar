@@ -1229,11 +1229,7 @@ processx(GdkXEvent *e, GdkEvent *event, gpointer d) {
 				arg.v = getatom(c, AtomGo);
 				logmsg("processx");
 				loaduri(c, &arg);
-<<<<<<< HEAD
-
-=======
 				logmsg("processx: return");
->>>>>>> logmsg() added
 				return GDK_FILTER_REMOVE;
 			}
 		}

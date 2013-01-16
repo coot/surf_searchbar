@@ -639,6 +639,7 @@ loaduri(Client *c, const Arg *arg) {
 	char *home;
 	char *path;
 	char *epath;
+	FILE *f;
 	Arg a = { .b = FALSE };
 	struct stat st;
 
@@ -689,6 +690,9 @@ loaduri(Client *c, const Arg *arg) {
 		reload(c, &a);
 	} else {
 		webkit_web_view_load_uri(c->view, u);
+		f = fopen(historyfile, "a+");
+		fprintf(f, "%s", u);
+		fclose(f);
 		c->progress = 0;
 		c->title = copystr(&c->title, u);
 		g_free(u);
@@ -1180,14 +1184,14 @@ parseuri(const gchar *uri) {
 		if ((*(pt + strlen(searchengines[i].token)) == ' ' && g_str_has_prefix(pt, searchengines[i].token)))
 		{
 		    logmsg("parseuri: token=%s\n", searchengines[i].token);
-			return g_strdup_printf(searchengines[i].uri, pt + strlen(searchengines[i].token) + 1);
+		    return g_strdup_printf(searchengines[i].uri, pt + strlen(searchengines[i].token) + 1);
 		}
 
 		if (strcmp(pt, searchengines[i].token) == 0 && strstr(searchengines[i].token, "%s") == NULL)
 		{
 		    logmsg("parseuri: token=%s\n", searchengines[i].token);
-			return g_strdup_printf(searchengines[i].uri, "");
-	}
+		    return g_strdup_printf(searchengines[i].uri, "");
+		}
 	}
 	logmsg("parseuri: DEFAULT: [%s] '%s'\n", defaultsearchengine, g_strdup_printf(defaultsearchengine, pt));
 	return g_strdup_printf(defaultsearchengine, pt);
@@ -1316,6 +1320,7 @@ setup(void) {
 
 	/* dirs and files */
 	cookiefile = buildpath(cookiefile);
+ 	historyfile = buildpath(historyfile);
 	scriptfile = buildpath(scriptfile);
 	stylefile = buildpath(stylefile);
 

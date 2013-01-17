@@ -150,7 +150,7 @@ static void logmsg(const char *fmt, ...);
 static void navigate(Client *c, const Arg *arg);
 static Client *newclient(void);
 static void newwindow(Client *c, const Arg *arg, gboolean noembed);
-static gchar *parseuri(const gchar *uri);
+static const gchar *parseuri(const gchar *uri);
 static char **parse_address(const char *url);
 static char **parse_url(const char *str);
 static void pasteuri(GtkClipboard *clipboard, const char *text, gpointer d);
@@ -633,13 +633,14 @@ loadstatuschange(WebKitWebView *view, GParamSpec *pspec, Client *c) {
 
 static void
 loaduri(Client *c, const Arg *arg) {
-	char *u, *rp;
-	char *uri = (char *)arg->v;
+	const gchar *u;
+	char *rp, *pt;
+	const gchar *uri = arg->v;
 	char **parsed_uri;
 	char *home;
 	char *path;
 	char *epath;
-	FILE *f;
+	/* FILE *f; */
 	Arg a = { .b = FALSE };
 	struct stat st;
 
@@ -650,7 +651,10 @@ loaduri(Client *c, const Arg *arg) {
 		return;
 
 	logmsg("loaduri: parseurl('%s')\n", uri);
-	parsed_uri = parse_url(uri);
+	pt=malloc(strlen(uri)+1);
+	pt=strdup((char *)uri);
+	parsed_uri = parse_url(pt);
+	free(pt);
 	logmsg("loaduri: parseurl returned\n");
 	logmsg("('%s', '%s', '%s', '%s')\n", parsed_uri[0], parsed_uri[1], parsed_uri[2], parsed_uri[3]);
 
@@ -680,6 +684,10 @@ loaduri(Client *c, const Arg *arg) {
 	} else {
 		logmsg("loaduri: parseuri()\n");
 		u = parseuri(uri);
+		/*
+		 * u = g_strrstr(uri, "://") ? g_strdup(uri)
+		 *         : g_strdup_printf("http://%s", uri);
+		 */
 		logmsg("loaduri: parseuri returned: '%s'\n", (char *)u);
 	}
 
@@ -690,13 +698,15 @@ loaduri(Client *c, const Arg *arg) {
 		reload(c, &a);
 	} else {
 		webkit_web_view_load_uri(c->view, u);
-		f = fopen(historyfile, "a+");
-		fprintf(f, "%s", u);
-		fclose(f);
+		/*
+		 * f = fopen(historyfile, "a+");
+		 * fprintf(f, "%s", u);
+		 * fclose(f);
+		 */
 		c->progress = 0;
 		c->title = copystr(&c->title, u);
-		g_free(u);
-		updatetitle(c);
+		g_free((gpointer )u);
+		update(c);
 	}
 	logmsg("loaduri: return\n");
 }
@@ -1161,10 +1171,10 @@ url_has_domain(char *url) {
     return test;
 }
 
-static gchar *
+static const gchar *
 parseuri(const gchar *uri) {
 	guint i;
-	gchar *pt = (gchar *)uri;
+	gchar *pt = g_strdup(uri);
 
 	while (*pt == ' ')
 	    pt+=1;
@@ -1201,9 +1211,9 @@ static void
 pasteuri(GtkClipboard *clipboard, const char *text, gpointer d) {
 	Arg arg = {.v = text };
 	if(text != NULL)
-		logmsg("pasteuri");
+		logmsg("pasteuri\n");
 		loaduri((Client *) d, &arg);
-		logmsg("pasteuri: return");
+		logmsg("pasteuri: return\n");
 }
 
 static void
@@ -1227,9 +1237,9 @@ processx(GdkXEvent *e, GdkEvent *event, gpointer d) {
 				return GDK_FILTER_REMOVE;
 			} else if(ev->atom == atoms[AtomGo]) {
 				arg.v = getatom(c, AtomGo);
-				logmsg("processx");
+				logmsg("processx (%s)\n", arg.v);
 				loaduri(c, &arg);
-				logmsg("processx: return");
+				logmsg("processx: return\n");
 				return GDK_FILTER_REMOVE;
 			}
 		}

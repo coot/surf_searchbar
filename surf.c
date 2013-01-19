@@ -150,9 +150,9 @@ static void logmsg(const char *fmt, ...);
 static void navigate(Client *c, const Arg *arg);
 static Client *newclient(void);
 static void newwindow(Client *c, const Arg *arg, gboolean noembed);
-static const gchar *parseuri(const gchar *uri);
+static const gchar *parseuri(const gchar *uri, char **parsed_uri);
 static char **parse_address(const char *url);
-static char **parse_url(const char *str);
+static char **parse_url(char *str);
 static void pasteuri(GtkClipboard *clipboard, const char *text, gpointer d);
 static void populatepopup(WebKitWebView *web, GtkMenu *menu, Client *c);
 static void popupactivate(GtkMenuItem *menu, Client *);
@@ -178,7 +178,7 @@ static void togglescrollbars(Client *c, const Arg *arg);
 static void togglestyle(Client *c, const Arg *arg);
 static void updatetitle(Client *c);
 static void updatewinid(Client *c);
-static int url_has_domain(char *url); 
+static int url_has_domain(char *url, char **parsed_uri); 
 static void usage(void);
 static void windowobjectcleared(GtkWidget *w, WebKitWebFrame *frame,
 		JSContextRef js, JSObjectRef win, Client *c);
@@ -640,23 +640,29 @@ loaduri(Client *c, const Arg *arg) {
 	char *home;
 	char *path;
 	char *epath;
-	/* FILE *f; */
+	int i;
+	FILE *f;
 	Arg a = { .b = FALSE };
 	struct stat st;
 
-	while (*uri == ' ')
-	    uri+=1;
+	/*
+	 * while (*uri == ' ')
+	 *     uri+=1;
+	 */
 
-	if(strcmp(uri, "") == 0)
+	if (*uri == '\0')
 		return;
 
-	logmsg("loaduri: parseurl('%s')\n", uri);
+	logmsg("loaduri: -parseurl('%s')\n", uri);
 	pt=malloc(strlen(uri)+1);
 	pt=strdup((char *)uri);
 	parsed_uri = parse_url(pt);
-	free(pt);
-	logmsg("loaduri: parseurl returned\n");
-	logmsg("('%s', '%s', '%s', '%s')\n", parsed_uri[0], parsed_uri[1], parsed_uri[2], parsed_uri[3]);
+	logmsg("loaduri: -parseurl returned\n");
+	printf("loaduri: 1 parsed_uri   =%p\n", (void *)parsed_uri);
+	printf("loaduri: 1 parsed_uri[0]=%p (%s)\n", (void *)parsed_uri[0], parsed_uri[0]);
+	printf("loaduri: 1 parsed_uri[1]=%p (%s)\n", (void *)parsed_uri[1], parsed_uri[1]);
+	printf("loaduri: 1 parsed_uri[2]=%p (%s)\n", (void *)parsed_uri[2], parsed_uri[2]);
+	printf("loaduri: 1 parsed_uri[3]=%p (%s)\n", (void *)parsed_uri[3], parsed_uri[3]);
 
 	/* In case it's a file path. */
 	if(strncmp(parsed_uri[0], "file://", 6) == 0 ||
@@ -682,8 +688,8 @@ loaduri(Client *c, const Arg *arg) {
 		u = g_strdup_printf("file://%s", rp);
 		free(rp);
 	} else {
-		logmsg("loaduri: parseuri()\n");
-		u = parseuri(uri);
+		logmsg("loaduri: parseuri(%s)\n", pt);
+		u = parseuri(pt,parsed_uri);
 		/*
 		 * u = g_strrstr(uri, "://") ? g_strdup(uri)
 		 *         : g_strdup_printf("http://%s", uri);
@@ -691,13 +697,30 @@ loaduri(Client *c, const Arg *arg) {
 		logmsg("loaduri: parseuri returned: '%s'\n", (char *)u);
 	}
 
+	printf("loaduri: u=%p\n", u);
+	printf("loaduri: 2 parsed_uri   =%p\n", (void *)parsed_uri);
+	printf("loaduri: 2 parsed_uri[0]=%p (%s)\n", (void *)parsed_uri[0], parsed_uri[0]);
+	printf("loaduri: 2 parsed_uri[1]=%p (%s)\n", (void *)parsed_uri[1], parsed_uri[1]);
+	printf("loaduri: 2 parsed_uri[2]=%p (%s)\n", (void *)parsed_uri[2], parsed_uri[2]);
+	printf("loaduri: 2 parsed_uri[3]=%p (%s)\n", (void *)parsed_uri[3], parsed_uri[3]);
+	printf("loaduri: pt=%p\n", pt);
+	free(pt);
+	for (i=0;i<4;i++)
+	    free(parsed_uri[i]);
+	free(parsed_uri);
+	// THIS BREAKS: ?
+	/* free((void *)parsed_uri); */
 	logmsg("loaduri: endless loop init\n");
 
 	/* prevents endless loop */
 	if(c->uri && strcmp(u, c->uri) == 0) {
+		logmsg("loaduri: reload\n");
 		reload(c, &a);
+		logmsg("loaduri: reload return\n");
 	} else {
+		logmsg("loaduri: webkit_web_view_load_uri (%s)\n", u);
 		webkit_web_view_load_uri(c->view, u);
+		logmsg("loaduri: webkit_web_view_load_uri return\n");
 		/*
 		 * f = fopen(historyfile, "a+");
 		 * fprintf(f, "%s", u);
@@ -706,7 +729,9 @@ loaduri(Client *c, const Arg *arg) {
 		c->progress = 0;
 		c->title = copystr(&c->title, u);
 		g_free((gpointer )u);
+		logmsg("loaduri: update\n");
 		update(c);
+		logmsg("loaduri: update return\n");
 	}
 	logmsg("loaduri: return\n");
 }
@@ -1007,30 +1032,30 @@ popupactivate(GtkMenuItem *menu, Client *c) {
  * ('http://', 'www.google.co.uk', '/search?q=hello')
  */
 static char **
-parse_url(const char *str) {
+parse_url(char *str) {
     /* Return the position of ':' - last element of a scheme, or 0 if there
      * is no scheme. */
     char *sch="";
-    char *pt=(char *)str;
+    char *pt;
     char **ret;
     char **dret;
-    int i = 0;
+    int k,i = 0;
 
+    pt=malloc(strlen(str)+1);
+    pt=strcpy(pt, str);
 
     while (*pt == ' ')
 	pt+=1;
-    ret=malloc(strlen(pt)+3);
+    ret=malloc(4*sizeof(char *));
 
     /* The first char must be a scheme char. */
     if (!*pt || !SCHEME_CHAR (*pt))
     {
-	ret[0]="";
+	ret[0]=malloc(1);
+	ret[0][0]='\0';
 	dret=parse_address(pt);
-	ret[1]=dret[0];
-	ret[2]=dret[1];
-	ret[3]=dret[2];
-	logmsg("parse_url: return 1\n");
-	logmsg("('%s', '%s', '%s', '%s')\n", ret[0], ret[1], ret[2], ret[3]);
+	for (k=0;k<3;k++)
+	    ret[k+1]=dret[k];
 	return ret;
     }
     ++i;
@@ -1051,20 +1076,15 @@ parse_url(const char *str) {
 	    ret[0]=sch;
 	    /* dret=malloc(strlen(str)); */
 	    dret=parse_address(pt+i+3);
-	    ret[1]=dret[0];
-	    ret[2]=dret[1];
-	    ret[3]=dret[2];
-	    logmsg("parse_url: return 2\n");
-	    logmsg("('%s', '%s', '%s', '%s')\n", ret[0], ret[1], ret[2], ret[3]);
+	    for (k=0;k<3;k++)
+		ret[k+1]=dret[k];
 	    return ret;
     }
-    ret[0]="";
+    ret[0]=malloc(1);
+    ret[0][0]='\0';
     dret=parse_address(str);
-    ret[1]=dret[0];
-    ret[2]=dret[1];
-    ret[3]=dret[2];
-    logmsg("parse_url: return 3\n");
-    logmsg("('%s', '%s', '%s', '%s')\n", ret[0], ret[1], ret[2], ret[3]);
+    for (k=0;k<3;k++)
+	ret[k+1]=dret[k];
     return ret;
 }
 
@@ -1082,7 +1102,8 @@ parse_address(const char *url)
     size_t u=strlen(url);
     char *domain;
     char *port;
-    char **res=malloc(u+3);
+    /* char *cpy; */
+    char **res=malloc(3*sizeof (char *));
 
     if (isalnum(*url)) {
 	++i;
@@ -1098,7 +1119,6 @@ parse_address(const char *url)
     // check for port number
     if ( (u > i) && *(url+i) == ':' )
     {
-	logmsg("parse_address: port\n");
 	n=i+1;
 	while ( (n<=u) && (n<i+1+5) && isdigit(*(url+n)) )
 	    n++;
@@ -1107,27 +1127,31 @@ parse_address(const char *url)
 	    port=malloc(n-i+1);
 	    port=strncpy(port, (url+i), n-i);
 	    port[n-i+1]='\0';
+	    logmsg("parse_address 1: port (%p)\n", port);
 	}
 	else
 	{
-	    port="";
+	    port=malloc(1);
+	    logmsg("parse_address 2: port (%p)\n", port);
+	    port[0]='\0';
 	}
-	logmsg("parse_address: port='%s'\n", port);
     }
     else
     {
 	n=i;
-	port = "";
+	port=malloc(1);
+	port[0] = '\0';
+	logmsg("parse_address 3: port (%p)\n", port);
     }
 
-    logmsg("parse_address: domain='%s'\n", domain);
-    logmsg("parse_address: port='%s'\n", port);
-    logmsg("parse_address: rest='%s'\n", (url+n));
 
     res[0]=domain;
     res[1]=port;
-    res[2]=(char *)(url+n);
-
+    res[2]=malloc(strlen(url+n)+1);
+    res[2]=strcpy(res[2], (url+n));
+    logmsg("parse_address: domain=%-10p (%s)\n", res[0], res[0]);
+    logmsg("parse_address: port  =%-10p (%s)\n", res[1], res[1]);
+    logmsg("parse_address: rest  =%-10p (%s)\n",  res[2], res[2]);
     return res;
 }
 
@@ -1135,21 +1159,13 @@ parse_address(const char *url)
  * This function tests if the url is has a qualified domain name.
  */
 static int
-url_has_domain(char *url) {
-    char **packed=parse_url(url);
-    char *domain;
-    char *rest;
-    char *pt=url;
-    bool test;
+url_has_domain(char *url, char **parsed_uri) {
+    char *domain=parsed_uri[1];
+    char *rest=parsed_uri[3];
 
-    // check white space
-    while (*pt == ' ')
-	pt+=1;
-    if (strstr(pt, " ") != NULL)
+    if (strstr(domain, " ") != NULL)
 	return false;
 
-    domain=packed[1];
-    rest=packed[3];
     if (! *domain ||
 	    (*rest && rest[0] != '/'))
 	return false;
@@ -1158,27 +1174,21 @@ url_has_domain(char *url) {
     // unless it is "localhost"
     if (strcmp(domain, "localhost") == 0) 
 	return true;
-    test = false;
-    for (int i; i<strlen(domain);i++) 
-    {
-	if (domain[i]=='.')
-	{
-	    test = true;
-	    break;
-	}
-    }
 
-    return test;
+    if (strstr(domain, ".") != NULL)
+	return true;
+
+    return false;
 }
 
 static const gchar *
-parseuri(const gchar *uri) {
+parseuri(const gchar *uri, char **parsed_uri) {
 	guint i;
 	gchar *pt = g_strdup(uri);
 
 	while (*pt == ' ')
 	    pt+=1;
-	bool hdm = url_has_domain((char *) pt);
+	bool hdm = url_has_domain((char *) pt, parsed_uri);
 
 	/* DEBUG */
 	logmsg("parseuri: hdm=%s\n", (hdm ? "true" : "false") );

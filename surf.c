@@ -496,10 +496,6 @@ initdownload(WebKitWebView *view, WebKitDownload *o, Client *c) {
 	Arg arg;
 
 	updatewinid(c);
-	/*
-	 * logmsg("webkit_donload_get_uri=%s\n", (char *)webkit_download_get_uri(o));
-	 * logmsg("geturi(c)=%s\n", (char *)geturi(c));
-	 */
 	arg = (Arg)DOWNLOAD((char *)webkit_download_get_uri(o), geturi(c));
 	spawn(c, &arg);
 	return FALSE;
@@ -585,26 +581,17 @@ loaduri(Client *c, const Arg *arg) {
 	if (*uri == '\0')
 		return;
 
-	logmsg("loaduri: -parseurl('%s')\n", uri);
 	pt=malloc(strlen(uri)+1);
 	pt=strdup((char *)uri);
 	parsed_uri = parse_url(pt);
-	logmsg("loaduri: -parseurl returned\n");
-	printf("loaduri: 1 parsed_uri   =%p\n", (void *)parsed_uri);
-	printf("loaduri: 1 parsed_uri[0]=%p (%s)\n", (void *)parsed_uri[0], parsed_uri[0]);
-	printf("loaduri: 1 parsed_uri[1]=%p (%s)\n", (void *)parsed_uri[1], parsed_uri[1]);
-	printf("loaduri: 1 parsed_uri[2]=%p (%s)\n", (void *)parsed_uri[2], parsed_uri[2]);
-	printf("loaduri: 1 parsed_uri[3]=%p (%s)\n", (void *)parsed_uri[3], parsed_uri[3]);
 
 	/* In case it's a file path. */
 	if(strncmp(parsed_uri[0], "file://", 6) == 0 ||
 		( strlen(parsed_uri[0]) == 0 && strlen(parsed_uri[1]) == 0)) {
-		logmsg("HOME=%s\n", getenv("HOME"));
 		path=malloc(strlen(parsed_uri[1])+strlen(parsed_uri[2])+strlen(parsed_uri[3])+1);
 		path=strcpy(path, parsed_uri[1]);
 		path=strcat(path, parsed_uri[2]);
 		path=strcat(path, parsed_uri[3]);
-		logmsg("path='%s'\n", path);
 
 		if (path[0] == '~')
 		{
@@ -613,59 +600,32 @@ loaduri(Client *c, const Arg *arg) {
 		    strcpy(epath, home);
 		    epath = strcat(epath, path+1);
 		    path = epath;
-		    logmsg("path='%s'\n", path);
 		}
 		rp = realpath(path, NULL);
-		logmsg("rp='%s'\n", rp);
 		u = g_strdup_printf("file://%s", rp);
 		free(rp);
 	} else {
-		logmsg("loaduri: parseuri(%s)\n", pt);
 		u = parseuri(pt,parsed_uri);
-		/*
-		 * u = g_strrstr(uri, "://") ? g_strdup(uri)
-		 *         : g_strdup_printf("http://%s", uri);
-		 */
-		logmsg("loaduri: parseuri returned: '%s'\n", (char *)u);
 	}
 
-	printf("loaduri: u=%p\n", u);
-	printf("loaduri: 2 parsed_uri   =%p\n", (void *)parsed_uri);
-	printf("loaduri: 2 parsed_uri[0]=%p (%s)\n", (void *)parsed_uri[0], parsed_uri[0]);
-	printf("loaduri: 2 parsed_uri[1]=%p (%s)\n", (void *)parsed_uri[1], parsed_uri[1]);
-	printf("loaduri: 2 parsed_uri[2]=%p (%s)\n", (void *)parsed_uri[2], parsed_uri[2]);
-	printf("loaduri: 2 parsed_uri[3]=%p (%s)\n", (void *)parsed_uri[3], parsed_uri[3]);
-	printf("loaduri: pt=%p\n", pt);
 	free(pt);
 	for (i=0;i<4;i++)
 	    free(parsed_uri[i]);
 	free(parsed_uri);
-	// THIS BREAKS: ?
-	/* free((void *)parsed_uri); */
-	logmsg("loaduri: endless loop init\n");
 
 	/* prevents endless loop */
 	if(c->uri && strcmp(u, c->uri) == 0) {
-		logmsg("loaduri: reload\n");
 		reload(c, &a);
-		logmsg("loaduri: reload return\n");
 	} else {
-		logmsg("loaduri: webkit_web_view_load_uri (%s)\n", u);
 		webkit_web_view_load_uri(c->view, u);
-		logmsg("loaduri: webkit_web_view_load_uri return\n");
-		/*
-		 * f = fopen(historyfile, "a+");
-		 * fprintf(f, "%s", u);
-		 * fclose(f);
-		 */
+		f = fopen(historyfile, "a+");
+		fprintf(f, "%s", u);
+		fclose(f);
 		c->progress = 0;
 		c->title = copystr(&c->title, u);
 		g_free((gpointer )u);
-		logmsg("loaduri: update\n");
 		update(c);
-		logmsg("loaduri: update return\n");
 	}
-	logmsg("loaduri: return\n");
 }
 
 static void
@@ -675,7 +635,7 @@ logmsg(const char *fmt, ...) {
     FILE *lf;
 
     va_start(vl,fmt);
-    vprintf(fmt, vl);
+    vprintf(fmt,vl);
     va_end(vl);
 
     va_start(vl,fmt);
@@ -992,7 +952,6 @@ parse_address(const char *url)
     size_t u=strlen(url);
     char *domain;
     char *port;
-    /* char *cpy; */
     char **res=malloc(3*sizeof (char *));
 
     if (isalnum(*url)) {
@@ -1004,9 +963,7 @@ parse_address(const char *url)
     domain=strncpy(domain, url, i);
     domain[i]='\0';
 
-    logmsg("parse_address: url='%s'\n", url);
-    logmsg("parse_address: domain='%s'\n", domain);
-    // check for port number
+    // check for a port number
     if ( (u > i) && *(url+i) == ':' )
     {
 	n=i+1;
@@ -1017,12 +974,10 @@ parse_address(const char *url)
 	    port=malloc(n-i+1);
 	    port=strncpy(port, (url+i), n-i);
 	    port[n-i+1]='\0';
-	    logmsg("parse_address 1: port (%p)\n", port);
 	}
 	else
 	{
 	    port=malloc(1);
-	    logmsg("parse_address 2: port (%p)\n", port);
 	    port[0]='\0';
 	}
     }
@@ -1031,7 +986,6 @@ parse_address(const char *url)
 	n=i;
 	port=malloc(1);
 	port[0] = '\0';
-	logmsg("parse_address 3: port (%p)\n", port);
     }
 
 
@@ -1039,9 +993,6 @@ parse_address(const char *url)
     res[1]=port;
     res[2]=malloc(strlen(url+n)+1);
     res[2]=strcpy(res[2], (url+n));
-    logmsg("parse_address: domain=%-10p (%s)\n", res[0], res[0]);
-    logmsg("parse_address: port  =%-10p (%s)\n", res[1], res[1]);
-    logmsg("parse_address: rest  =%-10p (%s)\n",  res[2], res[2]);
     return res;
 }
 
@@ -1078,10 +1029,8 @@ parseuri(const gchar *uri, char **parsed_uri) {
 
 	while (*pt == ' ')
 	    pt+=1;
-	bool hdm = url_has_domain((char *) pt, parsed_uri);
 
-	/* DEBUG */
-	logmsg("parseuri: hdm=%s\n", (hdm ? "true" : "false") );
+	bool hdm = url_has_domain((char *) pt, parsed_uri);
 
 	if (hdm)
 	    return g_strrstr(pt, "://") ? g_strdup(pt) : g_strdup_printf("http://%s", pt);
@@ -1093,17 +1042,14 @@ parseuri(const gchar *uri, char **parsed_uri) {
 
 		if ((*(pt + strlen(searchengines[i].token)) == ' ' && g_str_has_prefix(pt, searchengines[i].token)))
 		{
-		    logmsg("parseuri: token=%s\n", searchengines[i].token);
 		    return g_strdup_printf(searchengines[i].uri, pt + strlen(searchengines[i].token) + 1);
 		}
 
 		if (strcmp(pt, searchengines[i].token) == 0 && strstr(searchengines[i].token, "%s") == NULL)
 		{
-		    logmsg("parseuri: token=%s\n", searchengines[i].token);
 		    return g_strdup_printf(searchengines[i].uri, "");
 		}
 	}
-	logmsg("parseuri: DEFAULT: [%s] '%s'\n", defaultsearchengine, g_strdup_printf(defaultsearchengine, pt));
 	return g_strdup_printf(defaultsearchengine, pt);
 }
 
@@ -1111,9 +1057,7 @@ static void
 pasteuri(GtkClipboard *clipboard, const char *text, gpointer d) {
 	Arg arg = {.v = text };
 	if(text != NULL)
-		logmsg("pasteuri\n");
 		loaduri((Client *) d, &arg);
-		logmsg("pasteuri: return\n");
 }
 
 static void
@@ -1137,9 +1081,8 @@ processx(GdkXEvent *e, GdkEvent *event, gpointer d) {
 			}
 			else if(ev->atom == atoms[AtomGo]) {
 				arg.v = getatom(c, AtomGo);
-				logmsg("processx (%s)\n", arg.v);
+				printf("processx: arg.v=%s\n", (char *)arg.v);
 				loaduri(c, &arg);
-				logmsg("processx: return\n");
 				return GDK_FILTER_REMOVE;
 			}
 		}
@@ -1280,6 +1223,7 @@ spawn(Client *c, const Arg *arg) {
 		setsid();
 		execvp(((char **)arg->v)[0], (char **)arg->v);
 		fprintf(stderr, "surf: execvp %s", ((char **)arg->v)[0]);
+		printf("surf: execvp %s\n", ((char **)arg->v)[0]);
 		perror(" failed");
 		exit(0);
 	}

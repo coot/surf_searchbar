@@ -95,6 +95,7 @@ static void beforerequest(WebKitWebView *w, WebKitWebFrame *f,
 		WebKitWebResource *r, WebKitNetworkRequest *req,
 		WebKitNetworkResponse *resp, gpointer d);
 static char *buildpath(const char *path);
+static void googlebookmark(Client *C, const Arg *arg);
 static gboolean buttonrelease(WebKitWebView *web, GdkEventButton *e,
 		GList *gl);
 static void cleanup(void);
@@ -211,6 +212,21 @@ buildpath(const char *path) {
 	}
 
 	return apath;
+}
+
+static void
+googlebookmark(Client *c, const Arg *arg)
+{
+    char *url=(char *)webkit_web_view_get_uri(c->view);
+    char *title;
+    char *u;
+
+    if(!(title = (char *)webkit_web_view_get_title(c->view)))
+	title = "";
+    u=malloc(strlen(googlebookmarkurl)+strlen(url)+strlen(title)-3);
+    sprintf(u, googlebookmarkurl, url, title);
+    webkit_web_view_load_uri(c->view, u);
+    free(u);
 }
 
 static gboolean

@@ -77,6 +77,7 @@ G_DEFINE_TYPE(CookieJar, cookiejar, SOUP_TYPE_COOKIE_JAR_TEXT)
 typedef struct {
 	char *token;
 	char *uri;
+	int nr;
 } SearchEngine;
 
 static Display *dpy;
@@ -1168,7 +1169,18 @@ parseuri(const gchar *uri, char **parsed_uri) {
 
 		if ((*(pt + strlen(searchengines[i].token)) == ' ' && g_str_has_prefix(pt, searchengines[i].token)))
 		{
-		    return g_strdup_printf(searchengines[i].uri, pt + strlen(searchengines[i].token) + 1);
+		    switch (searchengines[i].nr)
+		    {
+			case 0:
+			return g_strdup_printf("%s", searchengines[i].uri);
+			break;
+			case 2:
+			return g_strdup_printf(searchengines[i].uri, pt + strlen(searchengines[i].token) + 1, pt + strlen(searchengines[i].token) + 1);
+			break;
+			default:
+			return g_strdup_printf(searchengines[i].uri, pt + strlen(searchengines[i].token) + 1);
+			break;
+		    }
 		}
 
 		if (strcmp(pt, searchengines[i].token) == 0 && strstr(searchengines[i].token, "%s") == NULL)

@@ -8,21 +8,21 @@ using your custom search engine, define different search engines to use (using
 prefixes in the url bar), or open html/local files.  The code contains has
 a nice url parser.  It was build based on [search engines
 patch](http://surf.suckless.org/patches/searchengines).  Second feature is
-an implementation of googlebookmark.  I also use the [home
+an integration with the google bookmark app.  I also use the [home
 page](http://surf.suckless.org/patches/homepage) patch.
 
 Build/Install
 -------------
 
-See the *Surf* README file.  Usually it is just enough to run ``make && make
-install``.  If you want to use the url bar you need to configure it,
-__before__ you compile Surf.
+See the *Surf's* README file.  Usually it is just enough to run ``make && make
+install`` (if you have all the necessary libraries).  If you want to use the
+url bar you need to configure it, __before__ you compile Surf.
 
 Configuration & Usage
 ---------------------
 
 First copy the file ``config.def.h`` to ``config.h`` and now
-add to the ``config.h`` file:
+add to it the following snippets:
 
 ```
 static SearchEngine searchengines[] = {
@@ -49,7 +49,8 @@ py cd.open
 ```
 gmail
 ```
-you will surf to the gmail page.
+you will surf to the gmail page.  If you provide a valid url, *Surf* will open
+it -- like the chromium url bar.
 
 Next add the following definition:
 ```

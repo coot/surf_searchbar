@@ -1,7 +1,7 @@
 Surf Web Browser
 ================
 
-Surf is a web browser from [suckless](http://surf.suckless.org/) for X11
+*Surf* is a web browser from [suckless](http://surf.suckless.org/) for *X11*
 window system based on WebKit.  This repository is contains my local branch.
 You will find a nice url bar which works like chrome url bar: you can search
 using your custom search engine, define different search engines to use (using
@@ -14,14 +14,15 @@ page](http://surf.suckless.org/patches/homepage) patch.
 Build/Install
 -------------
 
-See the Surf README file.  Usually it is just enought to run ``make && make
-install``.  If you want to use the url bar you need to configure it though,
-before you compile Surf.
+See the *Surf* README file.  Usually it is just enough to run ``make && make
+install``.  If you want to use the url bar you need to configure it,
+__before__ you compile Surf.
 
 Configuration & Usage
 ---------------------
 
-You can add to the ``config.h`` file:
+First copy the file ``config.def.h`` to ``config.h`` and now
+add to the ``config.h`` file:
 
 ```
 static SearchEngine searchengines[] = {
@@ -39,22 +40,22 @@ Then if you hit CTRL-g and you can type:
 Search Query
 ```
 
-and Surf will open google search for `Search Query`.  If you type:
+and *Surf* will open google search for `Search Query`.  If you type:
 ```
 py cd.open
 ```
-Surf will land on search result page of python 2.7.3 documentation for the
+*Surf* will land on search result page of python 2.7.3 documentation for the
 `cd.open` query.  And if you type:
 ```
 gmail
 ```
 you will surf to the gmail page.
 
-Finally add the following definition:
+Next add the following definition:
 ```
 #define HOMEPAGE "https://www.google.co.uk"
 ```
-Surf will open this web page when it starts.
+*Surf* will open this web page when it starts.
 
 And finally add the following code to the hotkeys (``Key keys[]``):
 ```
@@ -64,5 +65,5 @@ And finally add the following code to the hotkeys (``Key keys[]``):
 ```
 Then hitting CTRL-SHIFT-b (^B) will take you to the google bookmarks page,
 CTRL-SHIFT-a (^A) will bookmark the current page in the google bookmark app:
-it just opens the form and prefils it with some data for you.  The last
+it just opens the form and pre fills it with some data for you.  The last
 shortcut CTRL-SHIFT-h (^H) opens the HOMEPAGE.

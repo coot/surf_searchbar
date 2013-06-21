@@ -652,11 +652,6 @@ loaduri(Client *c, const Arg *arg) {
 	FILE *f;
 	Arg a = { .b = FALSE };
 
-	/*
-	 * while (*uri == ' ')
-	 *     uri+=1;
-	 */
-
 	if (*uri == '\0')
 		return;
 

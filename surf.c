@@ -675,7 +675,7 @@ loaduri(Client *c, const Arg *arg) {
 		if (path[0] == '~')
 		{
 		    home = getenv("HOME");
-		    home = realloc(home, strlen(path)+strlen(home)-1);
+		    home = realloc(home, strlen(path)+strlen(home));
 		    home = strcat(home, path+1);
 		    free(path);
 		    path = home;

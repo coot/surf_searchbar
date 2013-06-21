@@ -15,8 +15,6 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <limits.h>
-// used only by logmsg function:
-#include <stdarg.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <ctype.h>
@@ -122,6 +120,7 @@ static gboolean deletion_interface(WebKitWebView *view,
 static void destroyclient(Client *c);
 static void destroywin(GtkWidget* w, Client *c);
 static void die(const char *errstr, ...);
+static void eval(Client *c, const Arg *arg);
 static void find(Client *c, const Arg *arg);
 static void fullscreen(Client *c, const Arg *arg);
 static void geopolicyrequested(WebKitWebView *v, WebKitWebFrame *f,
@@ -147,7 +146,6 @@ static void linkhover(WebKitWebView *v, const char* t, const char* l,
 static void loadstatuschange(WebKitWebView *view, GParamSpec *pspec,
 		Client *c);
 static void loaduri(Client *c, const Arg *arg);
-static void logmsg(const char *fmt, ...);
 static void navigate(Client *c, const Arg *arg);
 static Client *newclient(void);
 static void newwindow(Client *c, const Arg *arg, gboolean noembed);
@@ -707,28 +705,6 @@ loaduri(Client *c, const Arg *arg) {
 }
 
 static void
-logmsg(const char *fmt, ...) {
-    va_list vl;
-    char *lp="/tmp/surf.log";
-    FILE *lf;
-
-    va_start(vl,fmt);
-    vprintf(fmt,vl);
-    va_end(vl);
-
-    va_start(vl,fmt);
-    lf=fopen(lp, "a");
-    if (lf)
-    {
-	vfprintf(lf, fmt, vl);
-	fclose(lf);
-    } else {
-	printf("Could not open log file\n");
-    }
-    va_end(vl);
-}
-
-static void
 navigate(Client *c, const Arg *arg) {
 	int steps = *(int *)arg;
 	webkit_web_view_go_back_or_forward(c->view, steps);
@@ -1212,7 +1188,6 @@ processx(GdkXEvent *e, GdkEvent *event, gpointer d) {
 				return GDK_FILTER_REMOVE;
 			} else if(ev->atom == atoms[AtomGo]) {
 				arg.v = getatom(c, AtomGo);
-				printf("processx: arg.v=%s\n", (char *)arg.v);
 				loaduri(c, &arg);
 
 				return GDK_FILTER_REMOVE;
@@ -1354,10 +1329,16 @@ spawn(Client *c, const Arg *arg) {
 		setsid();
 		execvp(((char **)arg->v)[0], (char **)arg->v);
 		fprintf(stderr, "surf: execvp %s", ((char **)arg->v)[0]);
-		printf("surf: execvp %s\n", ((char **)arg->v)[0]);
 		perror(" failed");
 		exit(0);
 	}
+}
+
+static void
+eval(Client *c, const Arg *arg) {
+	WebKitWebFrame *frame = webkit_web_view_get_main_frame(c->view);
+	evalscript(webkit_web_frame_get_global_context(frame),
+			((char **)arg->v)[0], "");
 }
 
 static void

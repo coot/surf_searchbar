@@ -1093,7 +1093,7 @@ parse_address(const char *url)
 }
 
 /*
- * This function tests if the url is has a qualified domain name.
+ * This function tests if the url has a qualified domain name.
  */
 static int
 url_has_domain(char *url, char **parsed_uri) {
